@@ -22,8 +22,8 @@ $stmt->execute([':u' => $username, ':e' => $email]);
 $exists = (int)$stmt->fetchColumn() > 0;
 
 if (!$exists) {
-    $ins = $pdo->prepare('INSERT INTO admin_users (username, email, password, role) VALUES (:u, :e, :p, \"admin\")');
-    $ins->execute([':u' => $username, ':e' => $email, ':p' => $passwordHash]);
+    $ins = $pdo->prepare('INSERT INTO admin_users (username, email, password, role) VALUES (:u, :e, :p, :r)');
+    $ins->execute([':u' => $username, ':e' => $email, ':p' => $passwordHash, ':r' => 'admin']);
     echo "Seeded admin user: admin / admin123\n";
 } else {
     echo "Admin user already exists.\n";

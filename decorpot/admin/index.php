@@ -17,10 +17,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Username and password are required.';
         } else {
             $pdo = getPDO();
-            $stmt = $pdo->prepare('SELECT id, username, password, role FROM admin_users WHERE username = :u LIMIT 1');
-            $stmt->execute([':u' => $username]);
+            // Allow login by username or email
+            $stmt = $pdo->prepare('SELECT id, username, password, role FROM admin_users WHERE username = :u OR email = :e LIMIT 1');
+            $stmt->execute([':u' => $username, ':e' => $username]);
             $user = $stmt->fetch();
-            if (!$user || !password_verify($password, $user['password'])) {
+
+            $loginOk = false;
+            if ($user) {
+                if (password_verify($password, $user['password'])) {
+                    $loginOk = true;
+                    if (password_needs_rehash($user['password'], PASSWORD_DEFAULT)) {
+                        $newHash = password_hash($password, PASSWORD_DEFAULT);
+                        $pdo->prepare('UPDATE admin_users SET password = :p WHERE id = :id')->execute([':p' => $newHash, ':id' => $user['id']]);
+                    }
+                } else {
+                    // Fallback: migrate legacy/plain passwords by matching exactly and rehashing
+                    $looksHashed = preg_match('/^(\$2y\$|\$argon2id\$|\$argon2i\$)/', (string)$user['password']) === 1;
+                    if (!$looksHashed && hash_equals((string)$user['password'], $password)) {
+                        $newHash = password_hash($password, PASSWORD_DEFAULT);
+                        $pdo->prepare('UPDATE admin_users SET password = :p WHERE id = :id')->execute([':p' => $newHash, ':id' => $user['id']]);
+                        $loginOk = true;
+                    }
+                }
+            }
+
+            if (!$user || !$loginOk) {
                 $errors[] = 'Invalid credentials.';
             } else {
                 login_user($user);
