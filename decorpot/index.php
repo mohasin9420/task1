@@ -7,6 +7,7 @@ $pdo = getPDO();
 $projects = $pdo->query("SELECT p.id, p.title, p.image_path, c.name AS category FROM portfolio p LEFT JOIN project_categories c ON p.category_id=c.id WHERE p.status='active' ORDER BY p.created_at DESC LIMIT 6")->fetchAll();
 $services = $pdo->query("SELECT id, title, summary, image_path, slug FROM services WHERE status='active' ORDER BY created_at DESC LIMIT 6")->fetchAll();
 $testimonials = $pdo->query("SELECT t.client_name, t.testimonial, t.rating, t.image_path FROM testimonials t WHERE t.status='approved' ORDER BY t.created_at DESC LIMIT 5")->fetchAll();
+$blogPosts = $pdo->query("SELECT id, title, slug, excerpt, image_path, published_at FROM blog_posts WHERE status='published' ORDER BY published_at DESC LIMIT 3")->fetchAll();
 
 $errors = [];
 $success = false;
@@ -141,6 +142,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'es
               <p class="mb-0"><?= e(mb_strimwidth((string)$t['testimonial'], 0, 180, '…')) ?></p>
             </blockquote>
             <div class="mt-2 fw-semibold">— <?= e($t['client_name']) ?></div>
+          </div>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section class="py-5">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h4 mb-0">Latest from the Blog</h2>
+    <a class="btn btn-sm btn-outline-primary" href="<?= e(base_url('blog.php')) ?>">View all</a>
+  </div>
+  <div class="row g-3">
+    <?php foreach ($blogPosts as $p): ?>
+      <div class="col-md-4">
+        <div class="card h-100">
+          <img src="<?= e($p['image_path'] ?: base_url('assets/images/placeholder.jpg')) ?>" class="card-img-top" alt="<?= e($p['title']) ?>">
+          <div class="card-body">
+            <h3 class="h6 mb-1"><?= e($p['title']) ?></h3>
+            <div class="small text-muted mb-2"><?= e((string)$p['published_at']) ?></div>
+            <p class="small text-muted mb-0"><?= e(mb_strimwidth((string)($p['excerpt'] ?? ''), 0, 120, '…')) ?></p>
           </div>
         </div>
       </div>

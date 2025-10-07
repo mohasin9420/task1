@@ -8,6 +8,7 @@ require_login();
 $pdo = getPDO();
 $errors = [];
 $success = null;
+$editing = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
@@ -45,7 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$errors) {
             if ($id > 0) {
-                $sql = 'UPDATE blog_posts SET title=:title, slug=:slug, excerpt=:excerpt, content=:content, status=:status' . ($imagePath ? ', image_path=:image_path' : '') . ' WHERE id=:id';
+                $sql = 'UPDATE blog_posts SET title=:title, slug=:slug, excerpt=:excerpt, content=:content, status=:status' . ($imagePath ? ', image_path=:image_path' : '') . 
+                    ', published_at = CASE WHEN :status = "published" AND (published_at IS NULL) THEN NOW() WHEN :status = "draft" THEN NULL ELSE published_at END WHERE id=:id';
                 $params = [
                     ':title' => $title,
                     ':slug' => $slug,
@@ -72,6 +74,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Load item for editing (GET)
+if (isset($_GET['edit'])) {
+    $editId = (int)$_GET['edit'];
+    if ($editId > 0) {
+        $stmt = $pdo->prepare('SELECT * FROM blog_posts WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $editId]);
+        $editing = $stmt->fetch();
+    }
+}
+
 if (($_GET['action'] ?? '') === 'delete' && isset($_GET['id'])) {
     if (!verify_csrf_token($_GET['token'] ?? null)) {
         $errors[] = 'Invalid delete token.';
@@ -91,16 +103,25 @@ $items = $pdo->query('SELECT * FROM blog_posts ORDER BY COALESCE(published_at, c
 <div class="row g-4">
   <div class="col-lg-5">
     <div class="card"><div class="card-body">
-      <h2 class="h6">Add / Edit Post</h2>
+      <div class="d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0"><?= $editing ? 'Edit Post' : 'Add Post' ?></h2>
+        <?php if ($editing): ?><a class="small" href="<?= e(base_url('admin/blog.php')) ?>">Clear</a><?php endif; ?>
+      </div>
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-        <input type="hidden" name="id" value="0">
-        <div class="mb-2"><label class="form-label">Title</label><input class="form-control" name="title" required></div>
-        <div class="mb-2"><label class="form-label">Slug</label><input class="form-control" name="slug" required></div>
-        <div class="mb-2"><label class="form-label">Excerpt</label><textarea class="form-control" name="excerpt" rows="2"></textarea></div>
-        <div class="mb-2"><label class="form-label">Content</label><textarea class="form-control" name="content" rows="6"></textarea></div>
-        <div class="mb-2"><label class="form-label">Status</label><select class="form-select" name="status"><option>draft</option><option>published</option></select></div>
+        <input type="hidden" name="id" value="<?= (int)($editing['id'] ?? 0) ?>">
+        <div class="mb-2"><label class="form-label">Title</label><input class="form-control" name="title" value="<?= e($editing['title'] ?? '') ?>" required></div>
+        <div class="mb-2"><label class="form-label">Slug</label><input class="form-control" name="slug" value="<?= e($editing['slug'] ?? '') ?>" required></div>
+        <div class="mb-2"><label class="form-label">Excerpt</label><textarea class="form-control" name="excerpt" rows="2"><?= e($editing['excerpt'] ?? '') ?></textarea></div>
+        <div class="mb-2"><label class="form-label">Content</label><textarea class="form-control" name="content" rows="6"><?= e($editing['content'] ?? '') ?></textarea></div>
+        <div class="mb-2"><label class="form-label">Status</label><select class="form-select" name="status">
+          <option <?= (($editing['status'] ?? '') === 'draft') ? 'selected' : '' ?>>draft</option>
+          <option <?= (($editing['status'] ?? '') === 'published') ? 'selected' : '' ?>>published</option>
+        </select></div>
         <div class="mb-3"><label class="form-label">Image</label><input type="file" name="image" class="form-control" accept="image/*"></div>
+        <?php if (!empty($editing['image_path'])): ?>
+          <div class="mb-3"><img src="<?= e($editing['image_path']) ?>" alt="Current image" class="img-fluid rounded border"></div>
+        <?php endif; ?>
         <button class="btn btn-primary" type="submit">Save</button>
       </form>
     </div></div>
@@ -117,6 +138,7 @@ $items = $pdo->query('SELECT * FROM blog_posts ORDER BY COALESCE(published_at, c
             <td><span class="badge bg-<?= $it['status'] === 'published' ? 'success' : 'secondary' ?>"><?= e($it['status']) ?></span></td>
             <td><?= e($it['published_at'] ?? '-') ?></td>
             <td>
+              <a class="btn btn-sm btn-outline-secondary" href="<?= e(base_url('admin/blog.php?edit=' . (int)$it['id'])) ?>">Edit</a>
               <a class="btn btn-sm btn-outline-danger" href="<?= e(base_url('admin/blog.php?action=delete&id=' . (int)$it['id'] . '&token=' . csrf_token())) ?>" onclick="return confirm('Delete this post?')">Delete</a>
             </td>
           </tr>

@@ -8,6 +8,7 @@ require_login();
 $pdo = getPDO();
 $errors = [];
 $success = null;
+$editing = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
@@ -77,6 +78,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Load item for editing (GET)
+if (isset($_GET['edit'])) {
+    $editId = (int)$_GET['edit'];
+    if ($editId > 0) {
+        $stmt = $pdo->prepare('SELECT * FROM services WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $editId]);
+        $editing = $stmt->fetch();
+    }
+}
+
 if (($_GET['action'] ?? '') === 'delete' && isset($_GET['id'])) {
     if (!verify_csrf_token($_GET['token'] ?? null)) {
         $errors[] = 'Invalid delete token.';
@@ -96,17 +107,26 @@ $items = $pdo->query('SELECT * FROM services ORDER BY created_at DESC')->fetchAl
 <div class="row g-4">
   <div class="col-lg-5">
     <div class="card"><div class="card-body">
-      <h2 class="h6">Add / Edit Service</h2>
+      <div class="d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0"><?= $editing ? 'Edit Service' : 'Add Service' ?></h2>
+        <?php if ($editing): ?><a class="small" href="<?= e(base_url('admin/services.php')) ?>">Clear</a><?php endif; ?>
+      </div>
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-        <input type="hidden" name="id" value="0">
-        <div class="mb-2"><label class="form-label">Title</label><input class="form-control" name="title" required></div>
-        <div class="mb-2"><label class="form-label">Slug</label><input class="form-control" name="slug" required></div>
-        <div class="mb-2"><label class="form-label">Price Range</label><input class="form-control" name="price_range"></div>
-        <div class="mb-2"><label class="form-label">Summary</label><textarea class="form-control" name="summary" rows="2"></textarea></div>
-        <div class="mb-2"><label class="form-label">Content</label><textarea class="form-control" name="content" rows="4"></textarea></div>
-        <div class="mb-2"><label class="form-label">Status</label><select class="form-select" name="status"><option>active</option><option>inactive</option></select></div>
+        <input type="hidden" name="id" value="<?= (int)($editing['id'] ?? 0) ?>">
+        <div class="mb-2"><label class="form-label">Title</label><input class="form-control" name="title" value="<?= e($editing['title'] ?? '') ?>" required></div>
+        <div class="mb-2"><label class="form-label">Slug</label><input class="form-control" name="slug" value="<?= e($editing['slug'] ?? '') ?>" required></div>
+        <div class="mb-2"><label class="form-label">Price Range</label><input class="form-control" name="price_range" value="<?= e($editing['price_range'] ?? '') ?>"></div>
+        <div class="mb-2"><label class="form-label">Summary</label><textarea class="form-control" name="summary" rows="2"><?= e($editing['summary'] ?? '') ?></textarea></div>
+        <div class="mb-2"><label class="form-label">Content</label><textarea class="form-control" name="content" rows="4"><?= e($editing['content'] ?? '') ?></textarea></div>
+        <div class="mb-2"><label class="form-label">Status</label><select class="form-select" name="status">
+          <option <?= (($editing['status'] ?? '') === 'active') ? 'selected' : '' ?>>active</option>
+          <option <?= (($editing['status'] ?? '') === 'inactive') ? 'selected' : '' ?>>inactive</option>
+        </select></div>
         <div class="mb-3"><label class="form-label">Image</label><input type="file" name="image" class="form-control" accept="image/*"></div>
+        <?php if (!empty($editing['image_path'])): ?>
+          <div class="mb-3"><img src="<?= e($editing['image_path']) ?>" alt="Current image" class="img-fluid rounded border"></div>
+        <?php endif; ?>
         <button class="btn btn-primary" type="submit">Save</button>
       </form>
     </div></div>
@@ -122,6 +142,7 @@ $items = $pdo->query('SELECT * FROM services ORDER BY created_at DESC')->fetchAl
             <td><?= e($it['title']) ?></td>
             <td><span class="badge bg-<?= $it['status'] === 'active' ? 'success' : 'secondary' ?>"><?= e($it['status']) ?></span></td>
             <td>
+              <a class="btn btn-sm btn-outline-secondary" href="<?= e(base_url('admin/services.php?edit=' . (int)$it['id'])) ?>">Edit</a>
               <a class="btn btn-sm btn-outline-danger" href="<?= e(base_url('admin/services.php?action=delete&id=' . (int)$it['id'] . '&token=' . csrf_token())) ?>" onclick="return confirm('Delete this service?')">Delete</a>
             </td>
           </tr>

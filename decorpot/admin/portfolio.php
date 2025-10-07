@@ -8,6 +8,7 @@ require_login();
 $pdo = getPDO();
 $errors = [];
 $success = null;
+$editing = null;
 
 // Fetch categories
 $categories = $pdo->query('SELECT id, name FROM project_categories ORDER BY name')->fetchAll();
@@ -86,6 +87,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Load item for editing (GET)
+if (isset($_GET['edit'])) {
+    $editId = (int)$_GET['edit'];
+    if ($editId > 0) {
+        $stmt = $pdo->prepare('SELECT * FROM portfolio WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $editId]);
+        $editing = $stmt->fetch();
+    }
+}
+
 // Handle delete
 if (($_GET['action'] ?? '') === 'delete' && isset($_GET['id'])) {
     if (!verify_csrf_token($_GET['token'] ?? null)) {
@@ -112,49 +123,61 @@ $items = $pdo->query('SELECT p.*, c.name AS category FROM portfolio p LEFT JOIN 
   <div class="col-lg-5">
     <div class="card">
       <div class="card-body">
-        <h2 class="h6">Add / Edit Project</h2>
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h6 mb-0"><?= $editing ? 'Edit Project' : 'Add Project' ?></h2>
+          <?php if ($editing): ?><a class="small" href="<?= e(base_url('admin/portfolio.php')) ?>">Clear</a><?php endif; ?>
+        </div>
         <form method="post" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="id" id="form-id" value="0">
+          <input type="hidden" name="id" id="form-id" value="<?= (int)($editing['id'] ?? 0) ?>">
           <div class="mb-2">
             <label class="form-label">Title</label>
-            <input class="form-control" name="title" required>
+            <input class="form-control" name="title" value="<?= e($editing['title'] ?? '') ?>" required>
           </div>
           <div class="mb-2">
             <label class="form-label">Description</label>
-            <textarea class="form-control" name="description" rows="3"></textarea>
+            <textarea class="form-control" name="description" rows="3"><?= e($editing['description'] ?? '') ?></textarea>
           </div>
           <div class="mb-2">
             <label class="form-label">Category</label>
             <select class="form-select" name="category_id">
               <option value="">None</option>
               <?php foreach ($categories as $c): ?>
-                <option value="<?= (int)$c['id'] ?>"><?= e($c['name']) ?></option>
+                <option value="<?= (int)$c['id'] ?>" <?= ((int)($editing['category_id'] ?? 0) === (int)$c['id']) ? 'selected' : '' ?>><?= e($c['name']) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
           <div class="mb-2">
             <label class="form-label">Location</label>
-            <input class="form-control" name="location">
+            <input class="form-control" name="location" value="<?= e($editing['location'] ?? '') ?>">
           </div>
           <div class="mb-2">
             <label class="form-label">Property Type</label>
             <select class="form-select" name="property_type">
               <option value="">Select</option>
-              <option>1BHK</option><option>2BHK</option><option>3BHK</option><option>4BHK</option><option>Villa</option><option>Office</option>
+              <?php $ptype = (string)($editing['property_type'] ?? ''); ?>
+              <option <?= $ptype==='1BHK'?'selected':'' ?>>1BHK</option>
+              <option <?= $ptype==='2BHK'?'selected':'' ?>>2BHK</option>
+              <option <?= $ptype==='3BHK'?'selected':'' ?>>3BHK</option>
+              <option <?= $ptype==='4BHK'?'selected':'' ?>>4BHK</option>
+              <option <?= $ptype==='Villa'?'selected':'' ?>>Villa</option>
+              <option <?= $ptype==='Office'?'selected':'' ?>>Office</option>
             </select>
           </div>
           <div class="mb-2">
             <label class="form-label">Status</label>
             <select class="form-select" name="status">
-              <option>active</option>
-              <option>inactive</option>
+              <option <?= (($editing['status'] ?? '') === 'active') ? 'selected' : '' ?>>active</option>
+              <option <?= (($editing['status'] ?? '') === 'inactive') ? 'selected' : '' ?>>inactive</option>
             </select>
           </div>
           <div class="mb-3">
             <label class="form-label">Image</label>
             <input type="file" class="form-control" name="image" accept="image/*">
           </div>
+          <?php if (!empty($editing['image_path'])): ?>
+            <div class="mb-3"><img src="<?= e($editing['image_path']) ?>" alt="Current image" class="img-fluid rounded border"></div>
+          <?php endif; ?>
           <button class="btn btn-primary" type="submit">Save</button>
         </form>
       </div>
@@ -172,6 +195,7 @@ $items = $pdo->query('SELECT p.*, c.name AS category FROM portfolio p LEFT JOIN 
               <td><?= e($it['category'] ?? '-') ?></td>
               <td><span class="badge bg-<?= $it['status'] === 'active' ? 'success' : 'secondary' ?>"><?= e($it['status']) ?></span></td>
               <td>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(base_url('admin/portfolio.php?edit=' . (int)$it['id'])) ?>">Edit</a>
                 <a class="btn btn-sm btn-outline-danger" href="<?= e(base_url('admin/portfolio.php?action=delete&id=' . (int)$it['id'] . '&token=' . csrf_token())) ?>" onclick="return confirm('Delete this project?')">Delete</a>
               </td>
             </tr>
