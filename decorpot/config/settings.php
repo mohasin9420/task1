@@ -11,7 +11,7 @@ return [
         'port' => getenv('DB_PORT') ?: '3306',
         'name' => getenv('DB_NAME') ?: 'decorpot',
         'user' => getenv('DB_USER') ?: 'root',
-        'pass' => getenv('DB_PASS') ?: '',
+        'pass' => getenv('DB_PASS') ?: '12345678',
         'charset' => getenv('DB_CHARSET') ?: 'utf8mb4',
     ],
 ];
